@@ -1997,44 +1997,73 @@ const UndertoneQuiz: React.FC = () => {
 
                       {viewedPalette ? (
                         <div className="mt-2">
-                          <div className="flex justify-center items-center gap-2 mb-2">
+                          <div className="text-center mb-2">
                             <h3 className="text-xs font-semibold text-gray-600 sm:text-sm">
                               {viewedPalette.name} Palette
                             </h3>
+                          </div>
+                          <div className="mx-auto grid max-w-[260px] grid-cols-6 gap-1 sm:max-w-xs sm:grid-cols-8 sm:gap-1.5">
                             <button
                               aria-label="Reset background to full palette"
-                              className="p-0.5 rounded-sm border border-gray-300/70 shadow-sm hover:shadow transition-all focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400"
+                              className={`col-span-2 sm:col-span-4
+                                           relative /* Needed for absolute positioning of overlay */
+                                           p-0 /* Remove padding, inner div will fill */
+                                           w-full rounded-md border border-gray-300/50
+                                           cursor-pointer transition-all duration-200
+                                           overflow-hidden /* Ensure inner div rounding is visible */
+                                           focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400
+                                           ${
+                                             resultSingleColorView === null
+                                               ? "ring-2 ring-offset-1 ring-cyan-500 shadow-md scale-105"
+                                               : "hover:scale-105 hover:shadow-sm"
+                                           }`}
                               onClick={() => setResultSingleColorView(null)}
                               title="Reset background to full palette"
                             >
                               <div
-                                className="h-3 w-5 sm:h-4 sm:w-6 rounded-[2px]"
+                                className="h-full w-full rounded-md"
                                 style={{ background: viewedPaletteGradient }}
                               />
-                            </button>
-                          </div>
 
-                          <div className="mx-auto grid max-w-[260px] grid-cols-6 gap-1 sm:max-w-xs sm:grid-cols-8 sm:gap-1.5">
-                            {viewedPalette.palette.map((hexColor) => {
-                              if (!hexColor) return null;
-                              const isSelected =
-                                resultSingleColorView === hexColor;
+                              {resultSingleColorView === null && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
+                                  <svg
+                                    className="h-4 w-4 text-white sm:h-5 sm:w-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={3}
+                                    viewBox="0 0 24 24"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                  >
+                                    <path
+                                      d="M5 13l4 4L19 7"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                            {viewedPalette.palette.map((colorString, index) => {
+                              const hex = colorString;
+                              if (!hex) return null;
+                              const isSelected = resultSingleColorView === hex;
+                              const name = hex;
+
                               return (
                                 <div
-                                  aria-label={`Preview background color ${hexColor}`}
+                                  aria-label={`Preview background ${name}`}
                                   className={`relative aspect-square w-full rounded-md border border-gray-300/50 cursor-pointer transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400 ${
                                     isSelected
                                       ? "ring-2 ring-offset-1 ring-cyan-500 shadow-md scale-105"
                                       : "hover:shadow-sm"
                                   }`}
-                                  key={`<span class="math-inline">\{viewedPalette\.name\}\-</span>{index}-${hexColor}`}
-                                  onClick={() =>
-                                    setResultSingleColorView(hexColor)
-                                  }
+                                  key={`${viewedPalette.name}-${index}-${hex}`}
+                                  onClick={() => setResultSingleColorView(hex)}
                                   role="button"
-                                  style={{ backgroundColor: hexColor }}
+                                  style={{ backgroundColor: hex }}
                                   tabIndex={0}
-                                  title={`Preview ${hexColor}`}
+                                  title={`Preview ${name}`}
                                 >
                                   {isSelected && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
@@ -2058,8 +2087,9 @@ const UndertoneQuiz: React.FC = () => {
                               );
                             })}
                           </div>
-                          <p className="mt-1.5 text-[10px] text-gray-500 sm:text-xs">
-                            Click color square to preview background.
+                          <p className="mt-1.5 text-[10px] text-gray-500 sm:text-xs text-center">
+                            Click color square or palette preview to change
+                            background.
                           </p>
                         </div>
                       ) : (
