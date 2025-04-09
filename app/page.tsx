@@ -91,6 +91,7 @@ type Undertone =
 
 const COLORS = {
   beige: { hex: "#F5F5DC", name: "Beige" },
+  bellwetherBlue: { hex: "#22305d", name: "Bellwether Blue" },
   black: { hex: "#000000", name: "Black" },
   bluePurple: { hex: "#8A2BE2", name: "Blue/Purple" },
   brightAqua: { hex: "#0FFFFF", name: "Bright Aqua" },
@@ -135,6 +136,9 @@ const COLORS = {
   terracotta: { hex: "#E2725B", name: "Terracotta" },
   trueRed: { hex: "#FF0000", name: "True Red" },
   turquoise: { hex: "#40E0D0", name: "Turquoise" },
+  veryBerry: { hex: "#b83273", name: "Very Berry" },
+  hollyhock: { hex: "#823271", name: "Hollyhock" },
+  deepGreen: { hex: "#0b6f6b", name: "Deep Green" },
 };
 
 const seasonQuestions: QuizQuestion[] = [
@@ -148,10 +152,10 @@ const seasonQuestions: QuizQuestion[] = [
         seasonScoreEffect: { autumn: -2, spring: 1, summer: -1, winter: 2 },
         swatches: [
           COLORS.pureWhite,
-          COLORS.black,
-          COLORS.hotPink,
-          COLORS.bluePurple,
-          COLORS.emerald,
+          COLORS.veryBerry,
+          COLORS.hollyhock,
+          COLORS.bellwetherBlue,
+          COLORS.deepGreen,
         ],
         text: "High contrast, cool, saturated (icy, jewel tones, pure white/black)",
       },
