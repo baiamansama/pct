@@ -35,9 +35,7 @@ interface ColorInfo {
   name: string;
 }
 
-interface PaletteColor {
-  [key: string]: string;
-}
+type PaletteColor = string;
 
 interface QuizOption {
   choiceLabel: string;
@@ -1187,9 +1185,8 @@ const UndertoneQuiz: React.FC = () => {
   const viewedPaletteGradient = useMemo(() => {
     if (!viewedPalette || viewedPalette.palette.length === 0)
       return "lightgrey";
-    const colors = viewedPalette.palette
-      .map((colorObj) => Object.values(colorObj)[0])
-      .filter(Boolean);
+    const colors = viewedPalette.palette.filter(Boolean);
+
     if (colors.length === 0) return "lightgrey";
     if (colors.length === 1) return colors[0];
 
@@ -1220,9 +1217,8 @@ const UndertoneQuiz: React.FC = () => {
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         ctx.fillRect(0, 0, width, height);
       } else if (viewedPalette && viewedPalette.palette.length > 0) {
-        const colors = viewedPalette.palette
-          .map((colorObj) => Object.values(colorObj)[0])
-          .filter(Boolean);
+        const colors = viewedPalette.palette.filter(Boolean);
+
         if (colors.length > 0) {
           const stripeHeight = height / colors.length;
           colors.forEach((color, index) => {
@@ -2019,25 +2015,26 @@ const UndertoneQuiz: React.FC = () => {
                           </div>
 
                           <div className="mx-auto grid max-w-[260px] grid-cols-6 gap-1 sm:max-w-xs sm:grid-cols-8 sm:gap-1.5">
-                            {viewedPalette.palette.map((colorObj, index) => {
-                              const hex = Object.values(colorObj)[0];
-                              const name = Object.keys(colorObj)[0];
-                              if (!hex) return null;
-                              const isSelected = resultSingleColorView === hex;
+                            {viewedPalette.palette.map((hexColor) => {
+                              if (!hexColor) return null;
+                              const isSelected =
+                                resultSingleColorView === hexColor;
                               return (
                                 <div
-                                  aria-label={`Preview background ${name}`}
+                                  aria-label={`Preview background color ${hexColor}`}
                                   className={`relative aspect-square w-full rounded-md border border-gray-300/50 cursor-pointer transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400 ${
                                     isSelected
                                       ? "ring-2 ring-offset-1 ring-cyan-500 shadow-md scale-105"
                                       : "hover:shadow-sm"
                                   }`}
-                                  key={`${viewedPalette.name}-${index}-${hex}`}
-                                  onClick={() => setResultSingleColorView(hex)}
+                                  key={`<span class="math-inline">\{viewedPalette\.name\}\-</span>{index}-${hexColor}`}
+                                  onClick={() =>
+                                    setResultSingleColorView(hexColor)
+                                  }
                                   role="button"
-                                  style={{ backgroundColor: hex }}
+                                  style={{ backgroundColor: hexColor }}
                                   tabIndex={0}
-                                  title={`Preview ${name} (${hex})`}
+                                  title={`Preview ${hexColor}`}
                                 >
                                   {isSelected && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
