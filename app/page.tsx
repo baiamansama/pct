@@ -150,7 +150,7 @@ const seasonQuestions: QuizQuestion[] = [
           COLORS.pureWhite,
           COLORS.black,
           COLORS.hotPink,
-          COLORS.trueRed,
+          COLORS.bluePurple,
           COLORS.emerald,
         ],
         text: "High contrast, cool, saturated (icy, jewel tones, pure white/black)",
