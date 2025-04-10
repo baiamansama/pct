@@ -1,5 +1,5 @@
-// Copyright (C) 2021 B factory, Inc. All rights reserved
 "use client";
+
 import {
   FilesetResolver,
   ImageSegmenter,
@@ -14,6 +14,14 @@ import React, {
   useRef,
   useState,
 } from "react";
+
+import ReactCrop, {
+  centerCrop,
+  makeAspectCrop,
+  type Crop,
+  type PixelCrop,
+} from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
 import paletteDataJson from "./color_palette.json";
 
@@ -109,7 +117,7 @@ const COLORS = {
   forestGreen: { hex: "#228B22", name: "Forest Green" },
   gold: { hex: "#FFD700", name: "Gold" },
   goldenYellow: { hex: "#FFDF00", name: "Golden Yellow" },
-  grey: { hex: "#808080", name: "Grey" }, // Corrected hex for Grey
+  grey: { hex: "#808080", name: "Grey" },
   hotPink: { hex: "#FF69B4", name: "Hot Pink" },
   icyBlue: { hex: "#AFFFFF", name: "Icy Blue" },
   ivory: { hex: "#FFFFF0", name: "Ivory" },
@@ -784,6 +792,71 @@ const undertoneQuestions: QuizQuestion[] = [
   },
 ];
 
+async function canvasPreview(
+  image: HTMLImageElement,
+  canvas: HTMLCanvasElement,
+  crop: PixelCrop
+) {
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) {
+    throw new Error("No 2d context");
+  }
+
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  const pixelRatio = window.devicePixelRatio || 1;
+
+  canvas.width = Math.floor(crop.width * scaleX * pixelRatio);
+  canvas.height = Math.floor(crop.height * scaleY * pixelRatio);
+
+  ctx.scale(pixelRatio, pixelRatio);
+  ctx.imageSmoothingQuality = "high";
+
+  const cropX = crop.x * scaleX;
+  const cropY = crop.y * scaleY;
+
+  const centerX = image.naturalWidth / 2;
+  const centerY = image.naturalHeight / 2;
+
+  ctx.save();
+
+  ctx.translate(-cropX, -cropY);
+  ctx.translate(centerX, centerY);
+  ctx.translate(-centerX, -centerY);
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    image.naturalWidth,
+    image.naturalHeight,
+    0,
+    0,
+    image.naturalWidth,
+    image.naturalHeight
+  );
+
+  ctx.restore();
+}
+
+function toBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", 0.9);
+  });
+}
+async function toDataUrl(canvas: HTMLCanvasElement): Promise<string | null> {
+  const blob = await toBlob(canvas);
+  if (!blob) {
+    return null;
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
 const calculateSeason = (scores: SeasonScore, undertone: Undertone): Season => {
   let likelySeason: Season = null;
   const undertoneBias = (season: keyof SeasonScore): number => {
@@ -1079,7 +1152,6 @@ const UndertoneQuiz: React.FC = () => {
   const [imageSegmenter, setImageSegmenter] = useState<ImageSegmenter | null>(
     null
   );
-  const [imageUploaded, setImageUploaded] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSegmenterReady, setIsSegmenterReady] = useState(false);
   const [oliveAnswersPositive, setOliveAnswersPositive] = useState<Set<number>>(
@@ -1116,8 +1188,17 @@ const UndertoneQuiz: React.FC = () => {
     null
   );
 
+  const [isCropping, setIsCropping] = useState(false);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  const aspect = 3 / 4;
+
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
   const allSubSeasonNames = useMemo(() => {
     return paletteData.seasons
@@ -1125,9 +1206,7 @@ const UndertoneQuiz: React.FC = () => {
       .sort((a, b) => a.localeCompare(b));
   }, []);
 
-  // Reset component state completely on mount (history is not persisted)
   useEffect(() => {
-    // Minimal reset on mount, image upload triggers full reset via restartQuiz
     setCurrentStage("Undertone");
     setCurrentQuestionIndex(0);
     setAnswerHistory([]);
@@ -1196,7 +1275,7 @@ const UndertoneQuiz: React.FC = () => {
       const end = (index + 1) * stripePercentage;
       return `${color} ${start.toFixed(2)}%, ${color} ${end.toFixed(2)}%`;
     });
-    return `linear-gradient(to right, ${gradientStops.join(", ")})`; // Use to right for button preview
+    return `linear-gradient(to right, ${gradientStops.join(", ")})`;
   }, [viewedPalette]);
 
   const drawCanvas = useCallback(() => {
@@ -1298,7 +1377,7 @@ const UndertoneQuiz: React.FC = () => {
   ]);
 
   useEffect(() => {
-    if (imageOriginal && segmentationMask && canvasRef.current) {
+    if (imageOriginal && segmentationMask && canvasRef.current && !isCropping) {
       drawCanvas();
     }
   }, [
@@ -1309,6 +1388,7 @@ const UndertoneQuiz: React.FC = () => {
     currentStage,
     viewedPalette,
     resultSingleColorView,
+    isCropping,
   ]);
 
   const checkTier2Visibility = useCallback(
@@ -1387,7 +1467,6 @@ const UndertoneQuiz: React.FC = () => {
     },
     [currentQuestion]
   );
-
   const restartQuiz = useCallback(() => {
     setAnswerHistory([]);
     setCurrentQuestionIndex(0);
@@ -1397,7 +1476,6 @@ const UndertoneQuiz: React.FC = () => {
     setResultSingleColorView(null);
     setViewedSubSeasonName(null);
     setImageOriginal(null);
-    setImageUploaded(null);
     setIsProcessing(false);
     setOliveAnswersPositive(new Set());
     setSeasonDetermined(null);
@@ -1409,10 +1487,28 @@ const UndertoneQuiz: React.FC = () => {
     setTier2Visible(false);
     setUndertoneFinal(null);
     setUndertoneScores({ cool: 0, neutral: 0, olive: 0, warm: 0 });
+
+    setIsCropping(false);
+    setOriginalImageUrl(null);
+    setCrop(undefined);
+    setCompletedCrop(null);
+    imgRef.current = null;
+
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext("2d");
       if (ctx) {
         ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
+    if (previewCanvasRef.current) {
+      const ctx = previewCanvasRef.current.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(
+          0,
+          0,
+          previewCanvasRef.current.width,
+          previewCanvasRef.current.height
+        );
       }
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -1422,62 +1518,151 @@ const UndertoneQuiz: React.FC = () => {
     (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-      if (!imageSegmenter) {
-        if (!isSegmenterReady)
-          alert("AI Model not ready. Please wait or refresh.");
-        return;
-      }
-      setIsProcessing(true);
+
       restartQuiz();
+
       const reader = new FileReader();
       reader.onload = (e) => {
         const imageUrl = e.target?.result as string;
         if (!imageUrl) {
           alert("Could not read image data.");
-          setIsProcessing(false);
           return;
         }
-        setImageUploaded(imageUrl);
-        const img = new Image();
-        img.onload = async () => {
-          setImageOriginal(img);
-          try {
-            if (!imageSegmenter)
-              throw new Error("Segmenter not available after image load.");
-            const result = await imageSegmenter.segment(img);
-            setSegmentationMask(result);
-            setFrameColor("#FFFFFF");
-            setSplitPosition(50);
-          } catch (error) {
-            console.error("Segmentation error:", error);
-            alert(
-              `Failed to process image. Error: ${
-                error instanceof Error ? error.message : String(error)
-              }`
-            );
-            setImageOriginal(null);
-            setSegmentationMask(null);
-          } finally {
-            setIsProcessing(false);
-          }
-        };
-        img.onerror = () => {
-          alert("Failed to load image. Check file format or integrity.");
-          setIsProcessing(false);
-          setImageOriginal(null);
-          setImageUploaded(null);
-        };
-        img.src = imageUrl;
+        setOriginalImageUrl(imageUrl);
+        setIsCropping(true);
+        setCrop(undefined);
+        setCompletedCrop(null);
       };
       reader.onerror = () => {
         alert("Could not read file.");
-        setIsProcessing(false);
       };
       reader.readAsDataURL(file);
       if (event.target) event.target.value = "";
     },
-    [imageSegmenter, isSegmenterReady, restartQuiz]
+    [restartQuiz]
   );
+
+  function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    imgRef.current = e.currentTarget;
+    const { width, height } = e.currentTarget;
+    const initialCrop = centerCrop(
+      makeAspectCrop(
+        {
+          unit: "%",
+          width: 80,
+        },
+        aspect,
+        width,
+        height
+      ),
+      width,
+      height
+    );
+    setCrop(initialCrop);
+    setCompletedCrop({
+      ...initialCrop,
+      unit: "px",
+      x: (initialCrop.x / 100) * width,
+      y: (initialCrop.y / 100) * height,
+      width: (initialCrop.width / 100) * width,
+      height: (initialCrop.height / 100) * height,
+    });
+  }
+
+  const drawPreview = useCallback(() => {
+    if (!completedCrop || !previewCanvasRef.current || !imgRef.current) {
+      return;
+    }
+    canvasPreview(imgRef.current, previewCanvasRef.current, completedCrop);
+  }, [completedCrop]);
+
+  useEffect(() => {
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+    if (
+      completedCrop?.width &&
+      completedCrop?.height &&
+      imgRef.current &&
+      previewCanvasRef.current
+    ) {
+      debounceTimeout.current = setTimeout(() => {
+        drawPreview();
+        debounceTimeout.current = null;
+      }, 100);
+    }
+
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, [completedCrop, drawPreview]);
+
+  const handleCropConfirm = useCallback(async () => {
+    const image = imgRef.current;
+    const previewCanvas = previewCanvasRef.current;
+    if (!image || !previewCanvas || !completedCrop) {
+      console.error("Missing image, canvas ref, or crop data");
+      alert("Cropping data missing. Please try adjusting the crop again.");
+      return;
+    }
+    if (!imageSegmenter) {
+      if (!isSegmenterReady)
+        alert("AI Model not ready. Please wait or refresh.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setIsCropping(false);
+
+    try {
+      await canvasPreview(image, previewCanvas, completedCrop);
+      const croppedImageDataUrl = await toDataUrl(previewCanvas);
+
+      if (!croppedImageDataUrl) {
+        throw new Error("Failed to generate cropped image data URL.");
+      }
+
+      const img = new Image();
+      img.onload = async () => {
+        setImageOriginal(img);
+        try {
+          const result = await imageSegmenter.segment(img);
+          setSegmentationMask(result);
+          setFrameColor("#FFFFFF");
+          setSplitPosition(50);
+        } catch (error) {
+          console.error("Segmentation error:", error);
+          alert(
+            `Failed to process cropped image. Error: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
+          restartQuiz();
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+      img.onerror = () => {
+        alert("Failed to load cropped image data.");
+        setIsProcessing(false);
+        restartQuiz();
+      };
+      img.src = croppedImageDataUrl;
+    } catch (e) {
+      console.error("Error during cropping confirmation:", e);
+      alert(
+        `Image cropping failed: ${e instanceof Error ? e.message : String(e)}`
+      );
+      setIsProcessing(false);
+      restartQuiz();
+    }
+  }, [completedCrop, imageSegmenter, isSegmenterReady, restartQuiz]);
+
+  const handleCropCancel = useCallback(() => {
+    restartQuiz();
+  }, [restartQuiz]);
 
   const handleNext = useCallback(() => {
     if (selectedOptionIndex === null || !currentQuestion) return;
@@ -1733,7 +1918,6 @@ const UndertoneQuiz: React.FC = () => {
       setViewedSubSeasonName(null);
     }
 
-    // Set tier2Visible state based on the snapshot taken during question filtering
     setTier2Visible(tempTier2Vis);
   }, [
     answerHistory,
@@ -1766,60 +1950,119 @@ const UndertoneQuiz: React.FC = () => {
       </Head>
       <div className="flex min-h-screen flex-col items-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-100 p-2 font-sans md:p-4 sm:p-3">
         <div className="relative w-full max-w-5xl rounded-xl bg-white p-3 shadow-xl md:p-6 sm:p-4">
-          {!isSegmenterReady && !isProcessing && !imageUploaded && (
-            <div className="py-8 text-center">
-              <div className="animate-pulse text-base text-indigo-600 md:text-lg sm:text-lg">
-                Loading AI Model... Please Wait.
+          {isCropping && originalImageUrl && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+              <div className="relative h-[85vh] w-full max-w-xl rounded-lg bg-white p-4 shadow-2xl flex flex-col">
+                <h3 className="text-lg font-semibold text-center mb-2 text-gray-700">
+                  Crop Your Photo
+                </h3>
+                <p className="text-xs text-center text-gray-500 mb-3">
+                  Adjust the box to focus on your face and upper chest.
+                </p>
+                <div className="relative flex-grow mb-4 overflow-hidden bg-gray-100 rounded">
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(_, percentCrop) => setCrop(percentCrop)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    aspect={aspect}
+                  >
+                    <img
+                      ref={imgRef}
+                      alt="Crop me"
+                      src={originalImageUrl}
+                      style={{ transform: `scale(1)`, objectFit: "contain" }}
+                      onLoad={onImageLoad}
+                    />
+                  </ReactCrop>
+                </div>
+                <canvas
+                  ref={previewCanvasRef}
+                  style={{
+                    display: "none",
+                    objectFit: "contain",
+                    width: completedCrop?.width ?? 0,
+                    height: completedCrop?.height ?? 0,
+                  }}
+                />
+                <div className="flex justify-center gap-4 mt-2">
+                  <button
+                    onClick={handleCropCancel}
+                    className="rounded-md border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-400"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCropConfirm}
+                    disabled={!completedCrop?.width || !completedCrop?.height}
+                    className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    Confirm Crop
+                  </button>
+                </div>
               </div>
             </div>
           )}
 
-          {isSegmenterReady && !imageOriginal && !isProcessing && (
-            <div className="px-2 py-4 text-center">
-              <h2 className="mb-2 text-base font-semibold text-gray-700 sm:text-lg">
-                Upload Your Photo
-              </h2>
-              <div className="mb-3 mx-auto max-w-md space-y-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-left text-xs text-gray-600 sm:p-3 sm:text-sm">
-                <p className="font-semibold">Photo Tips:</p>
-                <ul className="list-inside list-disc space-y-0.5">
-                  <li>Natural daylight (no direct sun).</li>
-                  <li>Clean face, no makeup.</li>
-                  <li>Hair pulled back.</li>
-                  <li>Neutral top (white/grey/black) or bare shoulders.</li>
-                  <li>Chest-up, looking straight, neutral expression.</li>
-                </ul>
+          {!isCropping &&
+            !isSegmenterReady &&
+            !imageOriginal &&
+            !isProcessing && (
+              <div className="py-8 text-center">
+                <div className="animate-pulse text-base text-indigo-600 md:text-lg sm:text-lg">
+                  Loading AI Model... Please Wait.
+                </div>
               </div>
-              <label
-                className="inline-block cursor-pointer rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow transition duration-200 hover:bg-indigo-700 hover:shadow-md sm:px-5 sm:py-2 sm:text-base"
-                htmlFor="imageUpload"
-              >
-                Choose Photo
-              </label>
-              <input
-                accept="image/jpeg, image/png, image/webp"
-                className="hidden"
-                disabled={isProcessing || !isSegmenterReady}
-                id="imageUpload"
-                onChange={handleImageUpload}
-                ref={fileInputRef}
-                type="file"
-              />
-              <p className="mt-2 text-xs text-gray-400">
-                Image processed locally in your browser.
-              </p>
-            </div>
-          )}
+            )}
+
+          {!isCropping &&
+            isSegmenterReady &&
+            !imageOriginal &&
+            !isProcessing && (
+              <div className="px-2 py-4 text-center">
+                <h2 className="mb-2 text-base font-semibold text-gray-700 sm:text-lg">
+                  Upload Your Photo
+                </h2>
+                <div className="mb-3 mx-auto max-w-md space-y-1 rounded-lg border border-blue-200 bg-blue-50 p-2 text-left text-xs text-gray-600 sm:p-3 sm:text-sm">
+                  <p className="font-semibold">Photo Tips:</p>
+                  <ul className="list-inside list-disc space-y-0.5">
+                    <li>Natural daylight (no direct sun).</li>
+                    <li>Clean face, no makeup.</li>
+                    <li>Hair pulled back.</li>
+                    <li>Neutral top (white/grey/black) or bare shoulders.</li>
+                    <li>Chest-up, looking straight, neutral expression.</li>
+                  </ul>
+                </div>
+                <label
+                  className="inline-block cursor-pointer rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow transition duration-200 hover:bg-indigo-700 hover:shadow-md sm:px-5 sm:py-2 sm:text-base"
+                  htmlFor="imageUpload"
+                >
+                  Choose Photo
+                </label>
+                <input
+                  accept="image/jpeg, image/png, image/webp"
+                  className="hidden"
+                  disabled={isProcessing || !isSegmenterReady}
+                  id="imageUpload"
+                  onChange={handleImageUpload}
+                  ref={fileInputRef}
+                  type="file"
+                />
+                <p className="mt-2 text-xs text-gray-400">
+                  Image processed locally in your browser.
+                </p>
+              </div>
+            )}
 
           {isProcessing && (
             <div className="py-8 text-center">
               <div className="mx-auto mb-2 h-5 w-5 animate-spin rounded-full border-b-2 border-indigo-600 md:h-6 md:w-6 sm:h-6 sm:w-6"></div>
               <p className="text-sm text-indigo-600 md:text-base sm:text-base">
-                Analyzing Image...
+                {isCropping ? "Preparing Cropper..." : "Analyzing Image..."}
               </p>
             </div>
           )}
 
-          {imageOriginal && !isProcessing && (
+          {!isCropping && imageOriginal && !isProcessing && (
             <>
               {currentStage !== "Result" && (
                 <div className="w-full text-center mb-3 mt-1">
@@ -1891,7 +2134,6 @@ const UndertoneQuiz: React.FC = () => {
                   </div>
                 </div>
               )}
-
               <div className="flex flex-col gap-2 lg:flex-row lg:gap-4 md:gap-3">
                 <div className="flex flex-col items-center lg:w-1/2 lg:sticky top-4 self-start w-full lg:max-w-[45%]">
                   <div
@@ -1904,44 +2146,14 @@ const UndertoneQuiz: React.FC = () => {
                         visibility: segmentationMask ? "visible" : "hidden",
                       }}
                     />
-                    {!segmentationMask && imageUploaded && (
+                    {!segmentationMask && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                         <p className="text-xs text-gray-400 sm:text-sm">
-                          Processing...
+                          Loading Preview...
                         </p>
                       </div>
                     )}
                   </div>
-
-                  {currentStage === "Result" && (
-                    <div className="relative w-full max-w-[240px] sm:max-w-xs mx-auto mb-2 z-10">
-                      <label className="sr-only" htmlFor="subSeasonSelect">
-                        Explore Palettes:
-                      </label>
-                      <select
-                        className="w-full rounded-full border border-gray-300 bg-white/90 backdrop-blur-sm px-3 py-1.5 text-xs shadow-md focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm appearance-none text-center"
-                        id="subSeasonSelect"
-                        onChange={handleViewedSubSeasonChange}
-                        value={viewedSubSeasonName ?? ""}
-                      >
-                        {allSubSeasonNames.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                        <svg
-                          className="fill-current h-4 w-4"
-                          viewBox="0 0 20 20"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                        </svg>
-                      </div>
-                    </div>
-                  )}
-
                   {Array.isArray(frameColor) &&
                     frameColor.length === 2 &&
                     currentStage !== "Result" && (
@@ -1968,7 +2180,6 @@ const UndertoneQuiz: React.FC = () => {
                       </div>
                     )}
                 </div>
-
                 <div className="w-full lg:w-1/2">
                   {currentStage === "Result" ? (
                     <div className="rounded-xl bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 p-3 text-center shadow-md sm:p-4">
@@ -1997,26 +2208,50 @@ const UndertoneQuiz: React.FC = () => {
 
                       {viewedPalette ? (
                         <div className="mt-2">
-                          <div className="text-center mb-2">
-                            <h3 className="text-xs font-semibold text-gray-600 sm:text-sm">
-                              {viewedPalette.name} Palette
-                            </h3>
+                          <div className="relative w-full max-w-[200px] sm:max-w-[220px] mx-auto mb-4 z-10">
+                            <label
+                              className="sr-only"
+                              htmlFor="subSeasonSelect"
+                            >
+                              Explore Palettes:
+                            </label>
+                            <select
+                              className="w-full appearance-none rounded-full border border-gray-300 bg-white px-4 py-1.5 text-center text-xs font-semibold text-indigo-700 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm"
+                              id="subSeasonSelect"
+                              onChange={handleViewedSubSeasonChange}
+                              value={viewedSubSeasonName ?? ""}
+                            >
+                              {allSubSeasonNames.map((name) => (
+                                <option key={name} value={name}>
+                                  {name}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-700">
+                              <svg
+                                className="h-4 w-4 fill-current"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                aria-hidden="true"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            </div>
                           </div>
+
                           <div className="mx-auto grid max-w-[260px] grid-cols-6 gap-1 sm:max-w-xs sm:grid-cols-8 sm:gap-1.5">
                             <button
                               aria-label="Reset background to full palette"
-                              className={`col-span-2 sm:col-span-4
-                                           relative /* Needed for absolute positioning of overlay */
-                                           p-0 /* Remove padding, inner div will fill */
-                                           w-full rounded-md border border-gray-300/50
-                                           cursor-pointer transition-all duration-200
-                                           overflow-hidden /* Ensure inner div rounding is visible */
-                                           focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400
-                                           ${
-                                             resultSingleColorView === null
-                                               ? "ring-2 ring-offset-1 ring-cyan-500 shadow-md scale-105"
-                                               : "hover:scale-105 hover:shadow-sm"
-                                           }`}
+                              className={`col-span-2 sm:col-span-4 relative p-0 w-full rounded-md border border-gray-300/50 cursor-pointer transition-all duration-200 overflow-hidden focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400 ${
+                                resultSingleColorView === null
+                                  ? "ring-2 ring-offset-1 ring-cyan-500 shadow-md scale-105"
+                                  : "hover:scale-105 hover:shadow-sm"
+                              }`}
                               onClick={() => setResultSingleColorView(null)}
                               title="Reset background to full palette"
                             >
@@ -2024,7 +2259,6 @@ const UndertoneQuiz: React.FC = () => {
                                 className="h-full w-full rounded-md"
                                 style={{ background: viewedPaletteGradient }}
                               />
-
                               {resultSingleColorView === null && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-md">
                                   <svg
@@ -2049,7 +2283,6 @@ const UndertoneQuiz: React.FC = () => {
                               if (!hex) return null;
                               const isSelected = resultSingleColorView === hex;
                               const name = hex;
-
                               return (
                                 <div
                                   aria-label={`Preview background ${name}`}
@@ -2106,7 +2339,7 @@ const UndertoneQuiz: React.FC = () => {
                       </div>
                       <div className="mt-3 flex flex-col justify-center gap-2 sm:flex-row sm:gap-3">
                         <button
-                          className="rounded-lg bg-gradient-to-r from-purple-500 to-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:shadow-lg hover:opacity-90 sm:px-4 sm:py-2 sm:text-base"
+                          className="rounded-lg bg-indigo-500 px-3 py-1.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:bg-indigo-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 sm:px-4 sm:py-2 sm:text-base"
                           onClick={restartQuiz}
                           type="button"
                         >
