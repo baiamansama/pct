@@ -1033,12 +1033,12 @@ const UndertoneQuiz: React.FC = () => {
                 </div>
               )}
               <div className="flex flex-col gap-2 lg:flex-row lg:gap-4 md:gap-3">
-                <div className="flex flex-col items-center lg:w-1/2 lg:sticky top-4 self-start w-full lg:max-w-[45%]">
+                <div className="flex flex-col lg:w-1/2 lg:sticky top-4 self-start w-full lg:max-w-[45%]">
                   <div
-                    className={`relative mx-auto aspect-[3/4] w-full max-w-[350px] overflow-hidden rounded-xl border border-gray-200 bg-gray-50 shadow-lg sm:max-w-[400px] mb-2`}
+                    className={`relative w-full max-w-[280px] mx-auto aspect-[3/4] overflow-hidden rounded-lg border-0 bg-gray-50 shadow-md sm:max-w-[320px] mb-1`} // Ensure w-full, removed border
                   >
                     <canvas
-                      className="absolute left-0 top-0 block h-full w-full object-contain"
+                      className="absolute inset-0 block h-full w-full object-cover" // Ensure canvas stretches fully
                       ref={canvasRef}
                       style={{
                         visibility: segmentationMask ? "visible" : "hidden",
@@ -1055,7 +1055,7 @@ const UndertoneQuiz: React.FC = () => {
                   {Array.isArray(frameColor) &&
                     frameColor.length === 2 &&
                     currentStage !== "Result" && (
-                      <div className="w-full max-w-[350px] px-2 mt-1 mb-1 sm:max-w-[400px] sm:px-4">
+                      <div className="w-full max-w-[280px] mx-auto px-1 mt-0.5 mb-0.5 sm:max-w-[320px] sm:px-2">
                         <label htmlFor="colorSplitSlider" className="sr-only">
                           Adjust Color Split
                         </label>
@@ -1068,10 +1068,10 @@ const UndertoneQuiz: React.FC = () => {
                           onChange={(e) =>
                             setSplitPosition(parseInt(e.target.value, 10))
                           }
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 range-sm accent-indigo-500"
+                          className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700 range-sm accent-indigo-500"
                           aria-label="Adjust color split percentage"
                         />
-                        <div className="flex justify-between text-[10px] text-gray-500 mt-0.5 sm:text-xs">
+                        <div className="flex justify-between text-[9px] text-gray-500 mt-0.5 sm:text-[10px]">
                           <span>◀ Left</span>
                           <span>Right ▶</span>
                         </div>
@@ -1106,7 +1106,7 @@ const UndertoneQuiz: React.FC = () => {
 
                       {viewedPalette ? (
                         <div className="mt-2">
-                          <div className="relative w-full max-w-[200px] sm:max-w-[220px] mx-auto mb-4 z-10">
+                          <div className="relative w-full max-w-[200px] sm:max-w-[220px] mx-auto mb-3 z-10">
                             <label
                               htmlFor="subSeasonSelect"
                               className="sr-only"
@@ -1142,7 +1142,7 @@ const UndertoneQuiz: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="mx-auto grid max-w-[260px] grid-cols-6 gap-1 sm:max-w-xs sm:grid-cols-8 sm:gap-1.5">
+                          <div className="mx-auto w-full max-w-[300px] grid grid-cols-6 gap-0.5 sm:max-w-[340px] sm:grid-cols-8 sm:gap-1">
                             <button
                               onClick={() => setResultSingleColorView(null)}
                               className={`col-span-2 sm:col-span-4 relative p-0 w-full rounded-md border border-gray-300/50 cursor-pointer transition-all duration-200 overflow-hidden focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-cyan-400 ${
@@ -1218,7 +1218,7 @@ const UndertoneQuiz: React.FC = () => {
                               );
                             })}
                           </div>
-                          <p className="mt-1.5 text-[10px] text-gray-500 sm:text-xs text-center">
+                          <p className="mt-1 text-[9px] text-gray-500 sm:text-[10px] text-center">
                             Click color square or palette preview to change
                             background.
                           </p>
