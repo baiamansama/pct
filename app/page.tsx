@@ -1081,27 +1081,55 @@ const UndertoneQuiz: React.FC = () => {
                 <div className="w-full lg:w-1/2">
                   {currentStage === "Result" ? (
                     <div className="rounded-xl bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 p-3 text-center shadow-md sm:p-4">
-                      <h2 className="mb-2 text-base font-semibold text-gray-800 sm:text-lg">
-                        Your Analysis Result
-                      </h2>
-                      <div className="mb-3 space-y-0.5 border-b border-gray-200 pb-2">
-                        <p className="text-xs text-gray-600 sm:text-sm">
-                          Determined Undertone:{" "}
-                          <span className="font-semibold text-gray-800">
-                            {getUndertoneEmoji(undertoneFinal)}{" "}
-                            {undertoneFinal ?? "N/A"}
-                          </span>
-                        </p>
-                        <p className="text-xs text-gray-600 sm:text-sm">
-                          Determined Season:{" "}
-                          <span className="font-semibold text-gray-800">
-                            {getSeasonEmoji(seasonDetermined)}{" "}
-                            {seasonDetermined ?? "N/A"}
-                          </span>
-                        </p>
-                        <p className="text-xs font-semibold text-gray-500 sm:text-sm">
-                          Initially Matched: {subSeasonDetermined ?? "N/A"}
-                        </p>
+                      <div className="mb-3 w-full text-center">
+                        <h2 className="text-base font-semibold text-gray-800 sm:text-lg mb-3">
+                          Your Analysis Results
+                        </h2>
+
+                        <div className="flex">
+                          <div className="flex-1 text-left space-y-0.5">
+                            <p className="text-xs text-gray-600 sm:text-sm">
+                              Undertone:{" "}
+                              <span className="font-semibold text-gray-800">
+                                {getUndertoneEmoji(undertoneFinal)}{" "}
+                                {undertoneFinal ?? "N/A"}
+                              </span>
+                            </p>
+                            <p className="text-xs text-gray-600 sm:text-sm">
+                              Season:{" "}
+                              <span className="font-semibold text-gray-800">
+                                {getSeasonEmoji(seasonDetermined)}{" "}
+                                {seasonDetermined ?? "N/A"}
+                              </span>
+                            </p>
+                            <p className="text-xs font-semibold text-gray-500 sm:text-sm">
+                              Subseason: {subSeasonDetermined ?? "N/A"}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col justify-center gap-2 ml-2">
+                            <button
+                              type="button"
+                              onClick={restartQuiz}
+                              className="rounded-md bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm transition duration-200 hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                            >
+                              Start Over
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                alert(
+                                  "Compare 2 Seasons functionality coming soon!"
+                                )
+                              }
+                              className="rounded-md bg-gradient-to-r from-indigo-500 to-purple-500 px-2 py-1 text-xs font-semibold text-white shadow-sm transition duration-200 hover:from-indigo-600 hover:to-purple-600 hover:shadow-md focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-indigo-500"
+                            >
+                              Compare Seasons
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 border-t border-gray-200 pt-3"></div>
                       </div>
 
                       {viewedPalette ? (
@@ -1235,15 +1263,6 @@ const UndertoneQuiz: React.FC = () => {
                       <div className="mt-3 mx-auto max-w-md space-y-1 rounded-md border border-yellow-200 bg-yellow-50 p-2 text-xs text-gray-600">
                         <strong>Disclaimer:</strong> This tool provides a
                         suggestion. Results vary. Use as a starting point.
-                      </div>
-                      <div className="mt-3 flex flex-col justify-center gap-2 sm:flex-row sm:gap-3">
-                        <button
-                          type="button"
-                          onClick={restartQuiz}
-                          className="rounded-lg bg-indigo-500 px-3 py-1.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:bg-indigo-600 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500 sm:px-4 sm:py-2 sm:text-base"
-                        >
-                          Start Over
-                        </button>
                       </div>
                     </div>
                   ) : currentQuestion ? (
